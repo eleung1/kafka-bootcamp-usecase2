@@ -1,4 +1,4 @@
-package com.eric.kafkabootcampstream.streamer;
+package com.eric.stream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

@@ -78,15 +78,20 @@
 			<artifactId>monitoring-interceptors</artifactId>
 			<version>3.3.1</version>
 		</dependency>
-    
-    <!-- Need this dependency, otherwise will throw an exception saying
-    no class def found org/apache/kafka/common/metrics/Sensor RecordingLevel -->
+
+		<!-- Need this dependency, otherwise will throw an exception saying no 
+			class def found org/apache/kafka/common/metrics/Sensor RecordingLevel -->
 		<dependency>
 			<groupId>org.apache.kafka</groupId>
 			<artifactId>kafka-clients</artifactId>
 			<version>1.0.0</version>
 		</dependency>
 
+		<dependency>
+			<groupId>io.confluent</groupId>
+			<artifactId>kafka-streams-avro-serde</artifactId>
+			<version>4.0.0</version>
+		</dependency>
 	</dependencies>
 
 	<dependencyManagement>
@@ -107,7 +112,25 @@
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 			</plugin>
+			<plugin>
+				<groupId>org.apache.avro</groupId>
+				<artifactId>avro-maven-plugin</artifactId>
+				<version>1.8.2</version>
+				<executions>
+					<execution>
+						<phase>generate-sources</phase>
+						<goals>
+							<goal>schema</goal>
+						</goals>
+						<configuration>
+							<sourceDirectory>${project.basedir}/src/main/resources/avro/</sourceDirectory>
+							<outputDirectory>${project.basedir}/src/main/java/</outputDirectory>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
 		</plugins>
+
 	</build>
 
 

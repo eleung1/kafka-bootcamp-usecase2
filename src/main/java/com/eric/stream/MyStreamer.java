@@ -1,4 +1,4 @@
-package com.eric.kafkabootcampstream.streamer;
+package com.eric.stream;
 
 import java.util.Properties;
 import java.util.regex.Pattern;
