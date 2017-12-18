@@ -1,4 +1,4 @@
-package com.eric.kafkabootcampstream;
+package com.eric;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;

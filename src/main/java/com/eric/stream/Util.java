@@ -8,10 +8,13 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 
-
+/**
+ * Util class copied from the bootcamp starter examples.
+ * 
+ * @author Eric Leung
+ *
+ */
 public class Util {
-
-
 
     private static Logger logger = LoggerFactory.getLogger(Util.class);
 

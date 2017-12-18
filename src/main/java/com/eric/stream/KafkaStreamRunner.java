@@ -1,31 +1,34 @@
 package com.eric.stream;
 
-import java.util.Properties;
-import java.util.regex.Pattern;
-
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
-
-import org.apache.kafka.common.serialization.Serde;
-import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.KafkaStreams;
-import org.apache.kafka.streams.StreamsConfig;
-import org.apache.kafka.streams.kstream.KStreamBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import kafka.consumer.ConsumerConfig;
 
+/**
+ * This class will start our stream after all dependencies are injected.
+ * 
+ * @author Eric Leung
+ *
+ */
 @Component
-public class MyStreamer {
+public class KafkaStreamRunner {
 
-  private Logger logger = LoggerFactory.getLogger(MyStreamer.class);
+  private Logger logger = LoggerFactory.getLogger(KafkaStreamRunner.class);
   
   @Autowired
-  KafkaStreams kafkaStreams;
+  private KafkaStreams kafkaStreams;
 
+  /**
+   * Run our stream after all dependency injections are done.
+   * 
+   * The stream is defined in KafkaStreamConfig.java via DSL.
+   * 
+   */
   @PostConstruct
   public void runStream() {
     logger.info("*** STARTING STREAM!!! ***");

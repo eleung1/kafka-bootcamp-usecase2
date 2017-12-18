@@ -4,12 +4,12 @@
 	<modelVersion>4.0.0</modelVersion>
 
 	<groupId>com.eric</groupId>
-	<artifactId>kafka-bootcamp-stream</artifactId>
+	<artifactId>kafka-bootcamp-usecase2-filter</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<packaging>jar</packaging>
 
-	<name>kafka-bootcamp-stream</name>
-	<description>Demo project for Spring Boot</description>
+	<name>kafka-bootcamp-usecase2-filter</name>
+	<description>Filter rule selects all transactions greater than 1000 CAD and publishes result to topic</description>
 
 	<parent>
 		<groupId>org.springframework.boot</groupId>
