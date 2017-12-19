@@ -142,8 +142,9 @@ public class KafkaStreamConfig {
   public KafkaStreams kafkaStreams(StreamsConfig kStreamsConfigs) {
     
     // Getting our values from application.properties
-    String sourceTopic = env.getProperty("topic.source.name");
-    String destTopic = env.getProperty("topic.dest.name");
+    String trxnTopic = env.getProperty("topic.trxn.name");
+    String over1000Topic = env.getProperty("topic.over1000.name");
+    String avgTopic = env.getProperty("topic.avg.name");
     String minTrxnAmount = env.getProperty("min.trxn.amount");
     
     // Minimum transaction amount that we are keeping.  Throw away trxns strictly less than this amount.
@@ -158,25 +159,27 @@ public class KafkaStreamConfig {
     // Avg serde
     final Serde<String> stringSerde = Serdes.String();
     final Serde<Windowed<String>> windowedStringSerde = new WindowedSerde<>(stringSerde);
+    windowedStringSerde.configure(serdeConfig, true); // 'true' for record values
     final Serde<TransactionsAvg> valueSpecificAvroSerdeAvg = new SpecificAvroSerde<>();
+    valueSpecificAvroSerdeAvg.configure(serdeConfig, false);
     // --- Stream definition starts here
     
     // Always start with a StreamBuilder to create a processing topology
     StreamsBuilder kStreamBuilder = new StreamsBuilder();
     
     // Define our input stream with specific avro serde
-    KStream<String, Transactions> trxnStream = kStreamBuilder.stream(sourceTopic, Consumed.with(Serdes.String(), valueSpecificAvroSerde));
+    KStream<String, Transactions> trxnStream = kStreamBuilder.stream(trxnTopic, Consumed.with(Serdes.String(), valueSpecificAvroSerde));
     
     // Filter: only keep trxn >= $1000
-    KStream<String, Transactions> over1000 = trxnStream.filter((key, value) -> StringUtils.isNumeric(value.getTransactionAmount()))
+    KStream<String, Transactions> over1000Stream = trxnStream.filter((key, value) -> StringUtils.isNumeric(value.getTransactionAmount()))
                                                        .filter((key, value) -> MIN_TRXN_AMT.compareTo(
                                                            new BigInteger(value.getTransactionAmount().toString())) < 0); 
     
     // Write results back to another kafka topic
-    over1000.to(destTopic);
+    over1000Stream.to(over1000Topic);
     
     // log to info for experiment purpose
-    over1000.foreach(new ForeachAction<String, Transactions>() {
+    over1000Stream.foreach(new ForeachAction<String, Transactions>() {
       public void apply(String key, Transactions value) {
         logger.info("OVER-1000::" + key + ":[" + value+"]");
      }
@@ -184,7 +187,7 @@ public class KafkaStreamConfig {
     
     
     // Experiment with multiple stream - START
-    KStream<String, Transactions> over1000Stream = kStreamBuilder.stream("CARMELLA-over-1000", Consumed.with(Serdes.String(), valueSpecificAvroSerde));
+    //KStream<String, Transactions> over1000Stream = kStreamBuilder.stream("CARMELLA-over-1000", Consumed.with(Serdes.String(), valueSpecificAvroSerde));
     
     // Create a KTable with a 30 seconds sliding window, advanced by 1 second
     KTable<Windowed<String>, TransactionsAvg> trxnsSumAndCount = over1000Stream
@@ -216,7 +219,7 @@ public class KafkaStreamConfig {
     });
     
     // Write results back to another kafka topic
-    //avgStream.to("CARMELLA-avg", Produced.with(windowedStringSerde, valueSpecificAvroSerdeAvg));
+    avgStream.to(avgTopic, Produced.with(windowedStringSerde, valueSpecificAvroSerdeAvg));
     
     // log to info for experiment purpose
     avgStream.foreach(new ForeachAction<Windowed<String>, TransactionsAvg>() {
