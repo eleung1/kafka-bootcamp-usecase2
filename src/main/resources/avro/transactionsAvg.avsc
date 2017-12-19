@@ -1,0 +1,10 @@
+{"namespace": "com.rbc.cloud.hackathon.data",
+"type": "record",
+"name": "TransactionsAvg",
+"fields": [
+    {"name": "CustId",  "type": "string"},
+    {"name": "TransactionSum",  "type": "int"},
+    {"name": "TransactionCount", "type": "int"},
+    {"name": "TransactionAvg", "type": "double"}
+  ]
+}

@@ -17,8 +17,14 @@ import org.apache.kafka.streams.Consumed;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
+import org.apache.kafka.streams.kstream.Aggregator;
 import org.apache.kafka.streams.kstream.ForeachAction;
 import org.apache.kafka.streams.kstream.KStream;
+import org.apache.kafka.streams.kstream.KTable;
+import org.apache.kafka.streams.kstream.Materialized;
+import org.apache.kafka.streams.kstream.Produced;
+import org.apache.kafka.streams.kstream.TimeWindows;
+import org.apache.kafka.streams.kstream.Windowed;
 import org.apache.kafka.streams.processor.WallclockTimestampExtractor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,7 +36,9 @@ import org.springframework.core.env.Environment;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.kafka.annotation.EnableKafka;
 
+import com.eric.serde.WindowedSerde;
 import com.rbc.cloud.hackathon.data.Transactions;
+import com.rbc.cloud.hackathon.data.TransactionsAvg;
 
 import io.confluent.kafka.serializers.KafkaAvroDeserializerConfig;
 import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde;
@@ -62,6 +70,16 @@ public class KafkaStreamConfig {
     properties.put(StreamsConfig.DEFAULT_TIMESTAMP_EXTRACTOR_CLASS_CONFIG, WallclockTimestampExtractor.class.getName());
     properties.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass());
     properties.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, SpecificAvroSerde.class);
+    
+    /* Could not create internal topics: Could not create topic: 
+     * ericUseCase2Streams-KSTREAM-AGGREGATE-STATE-STORE-0000000007-repartition due to Topic 
+     * replication factor must be 3 Retry #0
+     * -- Setting to 3
+     */
+    properties.put(StreamsConfig.REPLICATION_FACTOR_CONFIG, 3); 
+    
+    //RocksDB is used internally by Kafka Streams to handle operator state -- and RocksDB write some files to disc.
+    properties.put(StreamsConfig.STATE_DIR_CONFIG, env.getProperty("stream.state.dir"));
     
     // -- props from bootcamp starter examples - START
     properties.put("schema.registry.url",env.getProperty("schema.registry.url"));
@@ -137,6 +155,10 @@ public class KafkaStreamConfig {
     final Serde<Transactions> valueSpecificAvroSerde = new SpecificAvroSerde<>();
     valueSpecificAvroSerde.configure(serdeConfig, false); // 'false' for record values, 'true' for keys
     
+    // Avg serde
+    final Serde<String> stringSerde = Serdes.String();
+    final Serde<Windowed<String>> windowedStringSerde = new WindowedSerde<>(stringSerde);
+    final Serde<TransactionsAvg> valueSpecificAvroSerdeAvg = new SpecificAvroSerde<>();
     // --- Stream definition starts here
     
     // Always start with a StreamBuilder to create a processing topology
@@ -156,9 +178,53 @@ public class KafkaStreamConfig {
     // log to info for experiment purpose
     over1000.foreach(new ForeachAction<String, Transactions>() {
       public void apply(String key, Transactions value) {
-        logger.info(key + ":[" + value+"]");
+        logger.info("OVER-1000::" + key + ":[" + value+"]");
      }
     });
+    
+    
+    // Experiment with multiple stream - START
+    KStream<String, Transactions> over1000Stream = kStreamBuilder.stream("CARMELLA-over-1000", Consumed.with(Serdes.String(), valueSpecificAvroSerde));
+    
+    // Create a KTable with a 30 seconds sliding window, advanced by 1 second
+    KTable<Windowed<String>, TransactionsAvg> trxnsSumAndCount = over1000Stream
+        .selectKey((k,v) -> v.getCustId().toString())
+        .groupByKey()
+        .windowedBy(TimeWindows.of(30 * 1000L).advanceBy(1 * 1000L))
+        .aggregate(
+            TransactionsAvg::new,
+            new Aggregator<String, Transactions, TransactionsAvg>() {
+                @Override
+                public TransactionsAvg apply(String key, Transactions value, TransactionsAvg aggregate) {
+                    aggregate.setCustId(key);
+                    aggregate.setTransactionSum(
+                        Integer.parseInt(value.getTransactionAmount().toString()) +
+                        aggregate.getTransactionSum());
+                    aggregate.setTransactionCount(aggregate.getTransactionCount()+1);
+                    return aggregate;
+                }
+            });
+            //}, Materialized.as("trxnsSumAndCount"));  
+    
+    // Calculate the average from the sums and counts we gathered above, convert to a new stream
+    KStream<Windowed<String>, TransactionsAvg> avgStream = trxnsSumAndCount.toStream();
+    
+    avgStream.foreach(new ForeachAction<Windowed<String>, TransactionsAvg>() {
+      public void apply(Windowed<String> key, TransactionsAvg value) {
+        value.setTransactionAvg( ((double) value.getTransactionSum() / value.getTransactionCount()) );
+     }
+    });
+    
+    // Write results back to another kafka topic
+    //avgStream.to("CARMELLA-avg", Produced.with(windowedStringSerde, valueSpecificAvroSerdeAvg));
+    
+    // log to info for experiment purpose
+    avgStream.foreach(new ForeachAction<Windowed<String>, TransactionsAvg>() {
+      public void apply(Windowed<String> key, TransactionsAvg value) {
+        logger.info("AVG::" + key + ":[" + value+"]");
+     }
+    });
+    // Experiment with multiple stream - END
     
     KafkaStreams kafkaStreams = new KafkaStreams(kStreamBuilder.build(), kStreamsConfigs);
     return kafkaStreams;
