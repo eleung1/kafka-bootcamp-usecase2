@@ -150,23 +150,27 @@ public class KafkaStreamConfig {
     // Minimum transaction amount that we are keeping.  Throw away trxns strictly less than this amount.
     BigInteger MIN_TRXN_AMT = new BigInteger(minTrxnAmount);
     
-    // Serial/Deserializers: When you want to override serdes explicitly/selectively
+    // ------- Serial/Deserializers: When you want to override serdes explicitly/selectively ------- //
+    // Filter Serde
     final Map<String, String> serdeConfig = Collections.singletonMap("schema.registry.url",
         env.getProperty("schema.registry.url"));
     final Serde<Transactions> valueSpecificAvroSerde = new SpecificAvroSerde<>();
     valueSpecificAvroSerde.configure(serdeConfig, false); // 'false' for record values, 'true' for keys
     
-    // Avg serde
+    // Avg Serde
     final Serde<String> stringSerde = Serdes.String();
     final Serde<Windowed<String>> windowedStringSerde = new WindowedSerde<>(stringSerde);
     windowedStringSerde.configure(serdeConfig, true); // 'true' for record values
     final Serde<TransactionsAvg> valueSpecificAvroSerdeAvg = new SpecificAvroSerde<>();
     valueSpecificAvroSerdeAvg.configure(serdeConfig, false);
-    // --- Stream definition starts here
+    
+    
+    // ----------------- Stream definition starts here ----------------- //
     
     // Always start with a StreamBuilder to create a processing topology
     StreamsBuilder kStreamBuilder = new StreamsBuilder();
     
+    // ---------- Filter trxn < 1000 ---------- //
     // Define our input stream with specific avro serde
     KStream<String, Transactions> trxnStream = kStreamBuilder.stream(trxnTopic, Consumed.with(Serdes.String(), valueSpecificAvroSerde));
     
@@ -186,9 +190,7 @@ public class KafkaStreamConfig {
     });
     
     
-    // Experiment with multiple stream - START
-    //KStream<String, Transactions> over1000Stream = kStreamBuilder.stream("CARMELLA-over-1000", Consumed.with(Serdes.String(), valueSpecificAvroSerde));
-    
+    // ---------- Rolling window average ---------- //
     // Create a KTable with a 30 seconds sliding window, advanced by 1 second
     KTable<Windowed<String>, TransactionsAvg> trxnsSumAndCount = over1000Stream
         .selectKey((k,v) -> v.getCustId().toString())
@@ -227,8 +229,9 @@ public class KafkaStreamConfig {
         logger.info("AVG::" + key + ":[" + value+"]");
      }
     });
-    // Experiment with multiple stream - END
     
+    
+    // Construct the KafkaStreams instance based on the topology defined above
     KafkaStreams kafkaStreams = new KafkaStreams(kStreamBuilder.build(), kStreamsConfigs);
     return kafkaStreams;
   }
